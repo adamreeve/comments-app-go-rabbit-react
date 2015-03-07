@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -19,6 +19,10 @@ type Comment struct {
 	Author string    `json:"author"`
 	Text   string    `json:"text"`
 	ID     uuid.UUID `json:"id"`
+}
+
+func (c Comment) String() string {
+	return fmt.Sprintf("{Author:\"%s\", Text:\"%s\", ID:\"%s\"}", c.Author, c.Text, c.ID)
 }
 
 var commentsFile = "comments.json"
@@ -41,16 +45,17 @@ func getComments(w http.ResponseWriter, r *http.Request) {
 		messageType := websocket.TextMessage
 		p := loadJsonComments()
 
-		if err = conn.WriteMessage(websocket.TextMessage, p); err != nil {
+		if err = conn.WriteMessage(messageType, p); err != nil {
 			return
 		}
 
-		messageType, p, err := conn.ReadMessage()
+		messageType, r, err := conn.NextReader()
 		if err != nil {
 			return
 		} else {
-			log.Printf("Got type %d message: %s", messageType, p)
-			addComment(decodeComment(bytes.NewReader(p)))
+			newComment := decodeComment(r)
+			log.Printf("Got new comment: %+v", newComment)
+			addComment(newComment)
 		}
 	}
 }
