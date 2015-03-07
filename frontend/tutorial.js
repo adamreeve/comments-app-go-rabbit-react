@@ -1,7 +1,5 @@
 var converter = new Showdown.converter();
 
-var ws = new WebSocket('ws://localhost:8080/comments')
-
 var CommentBox = React.createClass({
   getInitialState: function() {
     return {data: []};
@@ -20,7 +18,14 @@ var CommentBox = React.createClass({
     this.setState({data: newComments});
 
     console.log("Sending new comment over websocket")
-    ws.send(JSON.stringify(comment));
+    this.webSocket.send(JSON.stringify(comment));
+  },
+
+  componentDidMount: function() {
+    this.webSocket = new WebSocket(this.props.url)
+    this.webSocket.onmessage = (function(e) {
+      this.loadComments(JSON.parse(e.data));
+    }).bind(this)
   },
 
   render: function() {
@@ -89,14 +94,10 @@ var CommentForm = React.createClass({
   }
 });
 
-var commentBox = React.render(
-  <CommentBox url="http://localhost:8080/comments" pollInterval={2000} />,
+React.render(
+  <CommentBox url="ws://localhost:8080/comments" />,
   document.getElementById("content")
 );
-
-ws.onmessage = function(e) {
-  commentBox.loadComments(JSON.parse(e.data));
-}
 
 function guid(){
   var d = new Date().getTime();
