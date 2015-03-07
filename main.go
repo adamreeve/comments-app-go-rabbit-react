@@ -2,11 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/gorilla/mux"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/gorilla/mux"
 )
 
 type Comment struct {
@@ -16,45 +18,65 @@ type Comment struct {
 
 var commentsFile = "comments.json"
 
-// Respond to an HTTP request for a page
+// Respond to an HTTP request the list of comments
 func getComments(w http.ResponseWriter, r *http.Request) {
 	log.Printf("GET comments")
 	http.ServeFile(w, r, commentsFile)
 }
 
-// Respond to an HTTP request for a page
+// Respond to an HTTP POST request for uploading a comment
 func postComments(w http.ResponseWriter, r *http.Request) {
 	log.Printf("POST comments")
-	var comment Comment
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&comment)
-	if err != nil {
-		panic(err)
-	}
 
-	var allComments []Comment
+	comment := decodeComment(r.Body)
+
+	addComment(comment)
+
+	comments := loadComments()
+
+	encoder := json.NewEncoder(w)
+	encoder.Encode(comments)
+}
+
+func loadComments() []Comment {
+	var comments []Comment
 	file, err := os.Open(commentsFile)
 	if err != nil {
 		panic(err)
 	}
-	decoder = json.NewDecoder(file)
-	err = decoder.Decode(&allComments)
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&comments)
 	if err != nil {
 		panic(err)
 	}
 	file.Close()
-	allComments = append(allComments, comment)
+	return comments
+}
 
-	file, err = os.Create(commentsFile)
+func saveComments(comments []Comment) {
+	file, err := os.Create(commentsFile)
 	if err != nil {
 		panic(err)
 	}
 	encoder := json.NewEncoder(file)
-	encoder.Encode(allComments)
+	encoder.Encode(comments)
 	file.Close()
+}
 
-	encoder = json.NewEncoder(w)
-	encoder.Encode(allComments)
+func decodeComment(r io.ReadCloser) Comment {
+	var comment Comment
+	decoder := json.NewDecoder(r)
+	err := decoder.Decode(&comment)
+	if err != nil {
+		panic(err)
+	}
+	return comment
+}
+
+func addComment(comment Comment) {
+	allComments := loadComments()
+	allComments = append(allComments, comment)
+	saveComments(allComments)
 }
 
 // Serve a static file out of the web directory
