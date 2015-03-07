@@ -19,6 +19,13 @@ const (
 	updateInterval = 5 * time.Second
 )
 
+type connection struct {
+	// Websocket connection
+	ws *websocket.Conn
+	// Channel telling the connection to send new data
+	send chan bool
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -28,36 +35,44 @@ var upgrader = websocket.Upgrader{
 func getComments(w http.ResponseWriter, r *http.Request) {
 	log.Printf("WebSocket comments")
 	// Try and upgrade to a websocket
-	conn, err := upgrader.Upgrade(w, r, nil)
+	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Error upgrading to websocket connection: %s", err)
 		return
 	}
-	go sendUpdates(conn)
-	readComments(conn)
+	c := &connection{
+		// Does this channel need to be buffered?
+		send: make(chan bool, 256),
+		ws:   ws,
+	}
+	h.register <- c
+	go sendUpdates(c)
+	readComments(c)
 }
 
-func sendUpdates(conn *websocket.Conn) {
+func sendUpdates(c *connection) {
 	pingTicker := time.NewTicker(pingPeriod)
-	sendUpdatesTicker := time.NewTicker(updateInterval)
 	defer func() {
 		pingTicker.Stop()
-		sendUpdatesTicker.Stop()
-		conn.Close()
+		c.ws.Close()
 	}()
 	// Send update immediately with initial data
-	if err := sendUpdate(conn); err != nil {
+	if err := sendUpdate(c.ws); err != nil {
 		return
 	}
 	for {
 		select {
 		case <-pingTicker.C:
-			conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+			c.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.ws.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
 				return
 			}
-		case <-sendUpdatesTicker.C:
-			if err := sendUpdate(conn); err != nil {
+		case _, ok := <-c.send:
+			if !ok {
+				// channel has been closed by the hub
+				c.ws.WriteMessage(websocket.CloseMessage, []byte{})
+			}
+			if err := sendUpdate(c.ws); err != nil {
 				return
 			}
 		}
@@ -75,15 +90,18 @@ func sendUpdate(conn *websocket.Conn) error {
 	return nil
 }
 
-func readComments(conn *websocket.Conn) {
-	defer conn.Close()
-	conn.SetReadDeadline(time.Now().Add(pongWait))
-	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(pongWait))
+func readComments(c *connection) {
+	defer func() {
+		h.unregister <- c
+		c.ws.Close()
+	}()
+	c.ws.SetReadDeadline(time.Now().Add(pongWait))
+	c.ws.SetPongHandler(func(string) error {
+		c.ws.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
 	for {
-		_, r, err := conn.NextReader()
+		_, r, err := c.ws.NextReader()
 		if err != nil {
 			log.Printf("Error reading socket: %v", err)
 			return
@@ -91,6 +109,7 @@ func readComments(conn *websocket.Conn) {
 			newComment := decodeComment(r)
 			log.Printf("Got new comment: %+v", newComment)
 			addComment(newComment)
+			h.broadcast <- true
 		}
 	}
 }

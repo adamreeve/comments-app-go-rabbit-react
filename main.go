@@ -30,6 +30,8 @@ func postComments(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	go h.run()
+
 	router := mux.NewRouter()
 	router.HandleFunc("/comments", getComments).Methods("GET")
 	router.HandleFunc("/comments", postComments).Methods("POST")
