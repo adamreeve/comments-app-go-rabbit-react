@@ -1,1 +1,12 @@
-[{"author":"Pete Hunt","text":"This is one comment"},{"author":"Jordan Walke","text":"This is *another* comment"}]
+[
+  {
+    "author":"Pete Hunt",
+    "text":"This is one comment",
+    "id":"6aeac79f-221f-4d65-9eb6-15acf1cf83b8"
+  },
+  {
+    "author":"Jordan Walke",
+    "text":"This is *another* comment",
+    "id":"8d91c7dd-d9a5-4843-aa5d-51bfb5b25bb9"
+  }
+]

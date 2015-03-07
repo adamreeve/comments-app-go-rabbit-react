@@ -1,27 +1,58 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 
+	"code.google.com/p/go-uuid/uuid"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 )
 
 type Comment struct {
-	Author string `json:"author"`
-	Text   string `json:"text"`
+	Author string    `json:"author"`
+	Text   string    `json:"text"`
+	ID     uuid.UUID `json:"id"`
 }
 
 var commentsFile = "comments.json"
 
-// Respond to an HTTP request the list of comments
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
+// Respond to a websocket request the list of comments
 func getComments(w http.ResponseWriter, r *http.Request) {
-	log.Printf("GET comments")
-	http.ServeFile(w, r, commentsFile)
+	log.Printf("WebSocket comments")
+	// Try and upgrade to a websocket
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Error upgrading to websocket connection: %s", err)
+		return
+	}
+	for {
+		messageType := websocket.TextMessage
+		p := loadJsonComments()
+
+		if err = conn.WriteMessage(websocket.TextMessage, p); err != nil {
+			return
+		}
+
+		messageType, p, err := conn.ReadMessage()
+		if err != nil {
+			return
+		} else {
+			log.Printf("Got type %d message: %s", messageType, p)
+			addComment(decodeComment(bytes.NewReader(p)))
+		}
+	}
 }
 
 // Respond to an HTTP POST request for uploading a comment
@@ -36,6 +67,14 @@ func postComments(w http.ResponseWriter, r *http.Request) {
 
 	encoder := json.NewEncoder(w)
 	encoder.Encode(comments)
+}
+
+func loadJsonComments() []byte {
+	contents, err := ioutil.ReadFile(commentsFile)
+	if err != nil {
+		panic(err)
+	}
+	return contents
 }
 
 func loadComments() []Comment {
@@ -63,7 +102,7 @@ func saveComments(comments []Comment) {
 	file.Close()
 }
 
-func decodeComment(r io.ReadCloser) Comment {
+func decodeComment(r io.Reader) Comment {
 	var comment Comment
 	decoder := json.NewDecoder(r)
 	err := decoder.Decode(&comment)

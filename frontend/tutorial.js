@@ -1,21 +1,16 @@
 var converter = new Showdown.converter();
 
+var ws = new WebSocket('ws://localhost:8080/comments')
+
 var CommentBox = React.createClass({
   getInitialState: function() {
     return {data: []};
   },
 
-  loadCommentsFromServer: function() {
-    $.ajax({
-      url: this.props.url,
-      dataType: 'json',
-      success: function(data) {
-        this.setState({data: data});
-      }.bind(this),
-      error: function(xhr, status, err) {
-        console.error(this.props.url, status, err.toString());
-      }.bind(this)
-    });
+  loadComments: function(comments) {
+    console.log("Got new comments from server")
+    console.log(comments)
+    this.setState({data: comments});
   },
 
   handleCommentSubmit: function(comment) {
@@ -23,26 +18,9 @@ var CommentBox = React.createClass({
     var comments = this.state.data;
     var newComments = comments.concat([comment]);
     this.setState({data: newComments});
-    // POST to server
-    console.log("Posting to server")
-    $.ajax({
-      url: this.props.url,
-      dataType: 'json',
-      type: 'POST',
-      data: JSON.stringify(comment),
-      success: function(data) {
-        this.setState({data: data});
-      }.bind(this),
-      error: function(xhr, status, err) {
-        console.error(this.props.url, status, err.toString());
-      }.bind(this)
-    });
-  },
 
-  componentDidMount: function() {
-    this.loadCommentsFromServer();
-    // Polls server to get comments from server
-    setInterval(this.loadCommentsFromServer, this.props.pollInterval);
+    console.log("Sending new comment over websocket")
+    ws.send(JSON.stringify(comment));
   },
 
   render: function() {
@@ -72,7 +50,7 @@ var CommentList = React.createClass({
   render: function() {
     var commentNodes = this.props.data.map(function (comment) {
       return (
-          <Comment author={comment.author}>
+          <Comment author={comment.author} key={comment.id}>
             {comment.text}
           </Comment>
         );
@@ -93,7 +71,8 @@ var CommentForm = React.createClass({
     if (!text || !author) {
       return;
     }
-    this.props.onCommentSubmit({author: author, text: text});
+    var id = guid();
+    this.props.onCommentSubmit({author: author, text: text, id: id});
     this.refs.author.getDOMNode().value = '';
     this.refs.text.getDOMNode().value = '';
     return;
@@ -110,7 +89,21 @@ var CommentForm = React.createClass({
   }
 });
 
-React.render(
+var commentBox = React.render(
   <CommentBox url="http://localhost:8080/comments" pollInterval={2000} />,
   document.getElementById("content")
 );
+
+ws.onmessage = function(e) {
+  commentBox.loadComments(JSON.parse(e.data));
+}
+
+function guid(){
+  var d = new Date().getTime();
+  var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = (d + Math.random()*16)%16 | 0;
+    d = Math.floor(d/16);
+    return (c=='x' ? r : (r&0x3|0x8)).toString(16);
+  });
+  return uuid;
+};
