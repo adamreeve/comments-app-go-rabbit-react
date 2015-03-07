@@ -8,5 +8,5 @@ watch:
 	./node_modules/.bin/jsx --watch frontend/ web/static/js/
 
 serve:
-	echo "Serving on http://localhost:8000"
-	( cd web/ && python -m SimpleHTTPServer )
+	@echo "Serving on http://localhost:8080"
+	./websockets
