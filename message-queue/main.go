@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	uri          = "amqp://guest:guest@172.17.0.7:5672/"
+	uri          = "amqp://guest:guest@localhost:5672/"
 	exchangeName = "test-exchange-fanout"
 	exchangeType = "fanout"
 	bindingKey   = "test-key"

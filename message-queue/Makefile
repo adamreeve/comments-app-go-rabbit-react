@@ -4,7 +4,7 @@ build:
 	go build -o rabbit-test
 
 run:
-	docker run -d -e RABBITMQ_NODENAME=my-rabbit --name ${CONTAINER_NAME} rabbitmq:3-management
+	docker run -d -p 15672:15672 -p 5672:5672 -e RABBITMQ_NODENAME=my-rabbit --name ${CONTAINER_NAME} rabbitmq:3-management
 
 start:
 	docker start ${CONTAINER_NAME}
