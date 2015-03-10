@@ -16,9 +16,9 @@ const (
 )
 
 func main() {
-	go receive("consumer1", "consumer1")
+	go receive("", "msg-consumer")
 
-	go receive("consumer2", "consumer2")
+	go receive("", "msg-consumer")
 
 	go publish()
 
