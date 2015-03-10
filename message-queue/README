@@ -1,0 +1,3 @@
+RabbitMQ Dockerfile on Docker Hub: https://registry.hub.docker.com/_/rabbitmq/
+
+Go library: https://github.com/streadway/amqp/
