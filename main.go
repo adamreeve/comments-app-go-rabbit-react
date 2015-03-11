@@ -9,6 +9,15 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const (
+	mqUri          = "amqp://guest:guest@localhost:5672/"
+	mqExchangeName = "test-exchange-fanout"
+	mqExchangeType = "fanout"
+	mqBindingKey   = "test-key"
+
+	mqSendReliable = true
+)
+
 // Serve a static file out of the web directory
 func serveFile(w http.ResponseWriter, r *http.Request) {
 	log.Printf("GET file: %s", r.RequestURI)
@@ -30,8 +39,6 @@ func postComments(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	go h.run()
-
 	router := mux.NewRouter()
 	router.HandleFunc("/comments", getComments).Methods("GET")
 	router.HandleFunc("/comments", postComments).Methods("POST")

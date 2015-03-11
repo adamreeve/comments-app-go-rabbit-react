@@ -5,10 +5,10 @@ var CommentBox = React.createClass({
     return {data: []};
   },
 
-  loadComments: function(comments) {
-    console.log("Got new comments from server")
-    console.log(comments)
-    this.setState({data: comments});
+  addComment: function(comment) {
+    console.log("Got new comment from server")
+    console.log(comment)
+    this.setState({data: this.state.data.concat([comment])});
   },
 
   handleCommentSubmit: function(comment) {
@@ -24,7 +24,7 @@ var CommentBox = React.createClass({
   componentDidMount: function() {
     this.webSocket = new WebSocket(this.props.url)
     this.webSocket.onmessage = (function(e) {
-      this.loadComments(JSON.parse(e.data));
+      this.addComment(JSON.parse(e.data));
     }).bind(this)
   },
 

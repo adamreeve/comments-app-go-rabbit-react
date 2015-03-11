@@ -67,6 +67,14 @@ func decodeComment(r io.Reader) Comment {
 	return comment
 }
 
+func encodeComment(comment Comment) []byte {
+	enc, err := json.Marshal(comment)
+	if err != nil {
+		panic(err)
+	}
+	return enc
+}
+
 func addComment(comment Comment) {
 	allComments := loadComments()
 	allComments = append(allComments, comment)

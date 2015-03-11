@@ -22,8 +22,10 @@ const (
 type connection struct {
 	// Websocket connection
 	ws *websocket.Conn
-	// Channel telling the connection to send new data
-	send chan bool
+	// Message queue consumer
+	consumer *Consumer
+	// Message queue publisher
+	publisher *Publisher
 }
 
 var upgrader = websocket.Upgrader{
@@ -40,24 +42,52 @@ func getComments(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error upgrading to websocket connection: %s", err)
 		return
 	}
-	c := &connection{
-		// Does this channel need to be buffered?
-		send: make(chan bool, 256),
-		ws:   ws,
+
+	messagesToSend := make(chan []byte)
+
+	consumer, err := newConsumer(
+		mqUri,
+		mqExchangeName,
+		mqExchangeType,
+		"",
+		mqBindingKey,
+		"",
+		messagesToSend,
+	)
+	if err != nil {
+		panic(err)
 	}
-	h.register <- c
-	go sendUpdates(c)
-	readComments(c)
+
+	publisher, err := newPublisher(
+		mqUri,
+		mqExchangeName,
+		mqExchangeType,
+		mqSendReliable,
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	c := &connection{
+		ws:        ws,
+		consumer:  consumer,
+		publisher: publisher,
+	}
+	go sendMessages(c, messagesToSend)
+	readMessages(c)
+	consumer.Shutdown()
 }
 
-func sendUpdates(c *connection) {
+// Reads incoming messages from Rabbit through the messages
+// channel and then sends them over the websocket to the client.
+func sendMessages(c *connection, messages chan []byte) {
 	pingTicker := time.NewTicker(pingPeriod)
 	defer func() {
 		pingTicker.Stop()
 		c.ws.Close()
 	}()
 	// Send update immediately with initial data
-	if err := sendUpdate(c.ws); err != nil {
+	if err := sendInitialData(c.ws); err != nil {
 		return
 	}
 	for {
@@ -67,33 +97,63 @@ func sendUpdates(c *connection) {
 			if err := c.ws.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
 				return
 			}
-		case _, ok := <-c.send:
+		case message, ok := <-messages:
 			if !ok {
-				// channel has been closed by the hub
 				c.ws.WriteMessage(websocket.CloseMessage, []byte{})
 			}
-			if err := sendUpdate(c.ws); err != nil {
+			if err := sendMessage(c.ws, message); err != nil {
 				return
 			}
 		}
 	}
 }
 
-func sendUpdate(conn *websocket.Conn) error {
+func sendInitialData(conn *websocket.Conn) error {
 	conn.SetWriteDeadline(time.Now().Add(writeWait))
 	messageType := websocket.TextMessage
-	p := loadJsonComments()
 
-	if err := conn.WriteMessage(messageType, p); err != nil {
+	comments := loadComments()
+
+	for _, comment := range comments {
+		if err := conn.WriteMessage(messageType, encodeComment(comment)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func sendMessage(conn *websocket.Conn, message []byte) error {
+	conn.SetWriteDeadline(time.Now().Add(writeWait))
+	messageType := websocket.TextMessage
+
+	if err := conn.WriteMessage(messageType, message); err != nil {
 		return err
 	}
 	return nil
 }
 
-func readComments(c *connection) {
+// Reads messages from the client and then publishes them
+// to all other clients via Rabbit MQ.
+func readMessages(c *connection) {
+	commentChan := make(chan Comment)
+	go readWebsocket(c, commentChan)
+
+	for {
+		newComment, ok := <-commentChan
+		if !ok {
+			// Channel closed
+			return
+		}
+		log.Printf("Got new comment: %+v", newComment)
+		c.publisher.Publish(mqBindingKey, encodeComment(newComment))
+	}
+}
+
+func readWebsocket(c *connection, commentChan chan Comment) {
 	defer func() {
-		h.unregister <- c
 		c.ws.Close()
+		close(commentChan)
 	}()
 	c.ws.SetReadDeadline(time.Now().Add(pongWait))
 	c.ws.SetPongHandler(func(string) error {
@@ -107,9 +167,7 @@ func readComments(c *connection) {
 			return
 		} else {
 			newComment := decodeComment(r)
-			log.Printf("Got new comment: %+v", newComment)
-			addComment(newComment)
-			h.broadcast <- true
+			commentChan <- newComment
 		}
 	}
 }

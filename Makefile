@@ -10,3 +10,6 @@ watch:
 serve:
 	@echo "Serving on http://localhost:8080"
 	./websockets
+
+rabbit:
+	docker run -d -p 15672:15672 -p 5672:5672 -e RABBITMQ_NODENAME=my-rabbit rabbitmq:3-management
