@@ -19,7 +19,12 @@ Then run rabbit MQ in a Docker container:
 make rabbit
 ```
 
-and run a webserver to serve the front end:
+Run the websocket service:
+```
+make serve
+```
+
+And run a webserver to serve the front end:
 ```
 python -m SimpleHTTPServe
 ```
