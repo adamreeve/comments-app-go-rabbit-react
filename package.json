@@ -1,0 +1,23 @@
+{
+  "name": "websockets",
+  "version": "0.0.1",
+  "description": "A comments app using React",
+  "main": "index.js",
+  "dependencies": {
+    "react-tools": "0.12.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adamreeve/comments-app-go-rabbit-react.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/adamreeve/comments-app-go-rabbit-react/issues"
+  },
+  "homepage": "https://github.com/adamreeve/comments-app-go-rabbit-react#readme"
+}

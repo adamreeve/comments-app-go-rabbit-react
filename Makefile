@@ -1,10 +1,13 @@
 all: jsx
 	go build -o websockets
 
-jsx:
+jsx: npm
 	./node_modules/.bin/jsx frontend/ web/static/js/
 
-watch:
+npm:
+	npm install
+
+watch: npm
 	./node_modules/.bin/jsx --watch frontend/ web/static/js/
 
 serve:
